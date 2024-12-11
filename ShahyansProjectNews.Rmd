@@ -1,0 +1,134 @@
+---
+title: "News Classification Project"
+author: "Shahyan Khan"
+date: "2023-11-01"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+Loading the data
+
+```{r}
+NewsData <- read.csv("OnlineNewsPopularity.csv")
+NewsData_original <- NewsData
+str(NewsData)
+```
+Get a general feel for the data
+```{r}
+NewsDataHist <- NewsData[NewsData$shares < 40000, ] # in order to get rid of outliers
+hist(NewsDataHist$shares, main = "Histogram without Outliers")
+hist(NewsData$shares, main = "Histogram with Outliers") # with outliers
+myMedian <- median(NewsData$shares)
+myMean <- mean(NewsData$shares)
+cat("Median: ", myMedian, " Mean: ",myMean)
+```
+I am going to create a binary target column called IsPopular by assigning articles with more than 1000 shares as popular and subsequently remove the shares column
+```{r}
+NewsData$y <- ifelse(NewsData$shares>1000,1,0)
+NewsData <- subset(NewsData,select = -c(shares))
+```
+Remove the URL column and timedelta colums as they are not numeric and not predictive
+```{r}
+NewsData <- subset(NewsData,select = -c(url))
+NewsData <- subset(NewsData,select = -c(timedelta))
+```
+Calculate sample size
+```{r}
+set.seed(4)
+smp_size <- floor(0.75 * nrow(NewsData))
+smp_size
+```
+Get indices for train
+```{r}
+set.seed(3)
+train_ind <- sample(1:nrow(NewsData), size = smp_size)
+```
+Split into train and test sets and scale the features
+```{r}
+target <- NewsData$y
+NewsData <- subset(NewsData,select = -c(y))
+NewsData$y <- target
+train <- NewsData[train_ind,]
+test <- NewsData[-train_ind,]
+
+```
+do logistic regression
+```{r}
+cls <- glm(y~.-y, family='binomial',data=train)
+```
+cut is 0.5
+```{r}
+cut=0.5
+```
+make predictions and evaluate error
+```{r}
+yhat = (predict(cls,train,type="response")>cut)
+tr.err = mean(train$y != yhat) 
+print(paste("Logistic Regression train error: ",tr.err))
+```
+
+Use test error
+```{r}
+yhat = (predict(cls,test,type="response")>cut)
+te.err = mean(test$y != yhat) 
+print(paste("Logistic Regression test error: ",te.err))
+```
+Naive predictor
+```{r}
+trN.err <- mean(!train$y)
+teN.err <- mean(!test$y)
+
+print(paste("Naive train error",trN.err))
+print(paste("Naive test error",teN.err))
+```
+Second model: Decision tree classifier
+```{r}
+library(rpart)
+tree <- rpart(y~.-y, method = "class", data = train, cp = 0.01)
+
+tree_train_prediction <- predict(tree, train, type = "class")
+tree_train_error <- mean(train$y != tree_train_prediction)
+print(paste("Decision Tree Classifier, cp=0.01 train error: ",tree_train_error))
+
+tree_test_prediction <- predict(tree, test, type = "class")
+tree_test_error <- mean(test$y != tree_test_prediction)
+print(paste("Decision Tree Classifier, cp=0.01 test error: ",tree_test_error))
+###
+tree2 <- rpart(y~.-y, method = "class", data = train, cp = 0.001)
+
+tree_train_prediction2 <- predict(tree2, train, type = "class")
+tree_train_error2 <- mean(train$y != tree_train_prediction2)
+print(tree_train_error2)
+
+tree_test_prediction2 <- predict(tree2, test, type = "class")
+tree_test_error2 <- mean(test$y != tree_test_prediction2)
+print(tree_test_error2 )
+###
+tree3 <- rpart(y~.-y, method = "class", data = train, cp = 0.0001)
+
+tree_train_prediction3 <- predict(tree3, train, type = "class")
+tree_train_error3 <- mean(train$y != tree_train_prediction3)
+print(tree_train_error3)
+
+tree_test_prediction3 <- predict(tree, test, type = "class")
+tree_test_error3 <- mean(test$y != tree_test_prediction)
+print(tree_test_error3)
+```
+Get the summary for Logistic Regression
+```{r}
+summary(cls)
+```
+```{r}
+summary(tree)
+summary(tree2)
+summary(tree3)
+```
+```
+Sources:
+https://www.statmethods.net/management/subset.html
+https://www.datamentor.io/r-programming/ifelse-function
+
